@@ -1,51 +1,50 @@
-	# 先導入後面會用到的套件
-import requests # 請求工具
-from bs4 import BeautifulSoup # 解析工具
-import time # 用來暫停程式
- 
+import requests
+from bs4 import BeautifulSoup
+import time
+import os
+
 # 要爬的股票
-stock = ["1101","2330"]
-	for i in range(len(stock)): # 迴圈依序爬股價
+stock = ["1101", "2330"]
 
-	    # 現在處理的股票
+# Telegram 機器人金鑰
+token = os.environ["BOT_TOKEN"]
+chat_id = os.environ["CHAT_ID"]
 
-	    stockid = stock[i]
+# 迴圈依序爬股價
+for i in range(len(stock)):
+    stockid = stock[i]
 
-	    # 網址塞入股票編號
+    # 股票網址
+    url = "https://tw.stock.yahoo.com/quote/" + stockid + ".TW"
 
-	    url = "https://tw.stock.yahoo.com/quote/"+stockid+".TW"
+    # 發送請求
+    headers = {"User-Agent": "Mozilla/5.0"}
+    r = requests.get(url, headers=headers, timeout=30)
+    r.raise_for_status()
 
-	    # 發送請求
+    # 解析 HTML
+    soup = BeautifulSoup(r.text, "html.parser")
 
-	    r = requests.get(url)
+    # 定位股價
+    price_tag = soup.select_one(
+        'span[class*="Fz(32px)"][class*="Fw(b)"][class*="Mend(16px)"]'
+    )
 
-	    # 解析回應的 HTML
+    if price_tag:
+        price = price_tag.get_text(strip=True)
+        message = "股票 " + stockid + " 最新股價為 " + price
+    else:
+        message = "股票 " + stockid + " 無法取得股價"
 
-	    soup = BeautifulSoup(r.text, 'html.parser')
+    # Telegram 發送訊息
+    api_url = f"https://api.telegram.org/bot{token}/sendMessage"
 
-	    # 定位股價
+    response = requests.post(api_url, data={
+        "chat_id": chat_id,
+        "text": message
+    }, timeout=30)
 
-	    price = soup.find('span',class_=["Fz(32px) Fw(b) Lh(1) Mend(16px) D(f) Ai(c) C($c-trend-down)","Fz(32px) Fw(b) Lh(1) Mend(16px) D(f) Ai(c)","Fz(32px) Fw(b) Lh(1) Mend(16px) D(f) Ai(c) C($c-trend-up)"]).getText()
-     	    # 回報的訊息 (可自訂)
+    if not response.ok:
+        raise RuntimeError("Telegram 發送失敗")
 
-	    message = "股票 "+stockid+" 即時股價為 "+price
-
-	    # 用 telegram bot 回報股價
-
-	    # bot token
-
-	    token = "輸入你的 bot token"
-
-	    # 使用者 id
-
-	    chat_id="輸入你的 telegram id"
-
-	    # bot 送訊息
-
-	    url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
-
-	    requests.get(url)
-
-	    # 每次都停 3 秒
-
-	    time.sleep(3)
+    time.sleep(3)
